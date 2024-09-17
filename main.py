@@ -35,45 +35,66 @@ def read_root():
 
 @app.post('/pipelines/parse')
 def parse_pipeline(pipeline: Pipeline):
-    num_nodes = len(pipeline.nodes)
-    num_edges = len(pipeline.edges)
-    
-    # Create adjacency list
-    adjacency_list = {}
-    for node in pipeline.nodes:
-        adjacency_list[node.id] = []
-    
-    for edge in pipeline.edges:
-        adjacency_list[edge.source].append(edge.target)
+    try:
+        num_nodes = len(pipeline.nodes)
+        num_edges = len(pipeline.edges)
 
-    # Check if the graph is a DAG
-    def is_dag(graph):
-        visited = set()
-        rec_stack = set()
+        # Handle the case where there are no nodes or edges
+        if num_nodes == 0 or num_edges == 0:
+            raise HTTPException(status_code=400, detail="The pipeline must contain at least one node and one edge.")
 
-        def dfs(node):
-            if node not in visited:
-                visited.add(node)
-                rec_stack.add(node)
+        # Create adjacency list for DAG check
+        adjacency_list = {}
+        for node in pipeline.nodes:
+            adjacency_list[node.id] = []
 
-                for neighbor in graph[node]:
-                    if neighbor not in visited and dfs(neighbor):
-                        return True
-                    elif neighbor in rec_stack:
-                        return True
+        # Validate that all edges have valid source and target nodes
+        for edge in pipeline.edges:
+            if edge.source not in adjacency_list:
+                raise HTTPException(status_code=400, detail=f"Invalid edge: {edge.id}. Source node '{edge.source}' does not exist.")
+            if edge.target not in adjacency_list:
+                raise HTTPException(status_code=400, detail=f"Invalid edge: {edge.id}. Target node '{edge.target}' does not exist.")
+            adjacency_list[edge.source].append(edge.target)
 
-            rec_stack.remove(node)
-            return False
+        # Check if the graph is a DAG (no cycles)
+        def is_dag(graph):
+            visited = set()
+            rec_stack = set()
 
-        for node in graph:
-            if dfs(node):
+            def dfs(node):
+                if node not in visited:
+                    visited.add(node)
+                    rec_stack.add(node)
+
+                    for neighbor in graph[node]:
+                        if neighbor not in visited and dfs(neighbor):
+                            return True
+                        elif neighbor in rec_stack:
+                            return True
+
+                    rec_stack.remove(node)
                 return False
-        return True
 
-    is_dag_result = is_dag(adjacency_list)
+            for node in graph:
+                if dfs(node):
+                    return False
+            return True
 
-    return {
-        'num_nodes': num_nodes,
-        'num_edges': num_edges,
-        'is_dag': is_dag_result
-    }
+        # Check if the graph is a DAG
+        is_dag_result = is_dag(adjacency_list)
+
+        return {
+            'num_nodes': num_nodes,
+            'num_edges': num_edges,
+            'is_dag': is_dag_result
+        }
+
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions to return to the client
+        raise http_exc
+    except Exception as e:
+        # Catch any unexpected exceptions and log the error
+        print(f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please check the input data.")
+
+
