@@ -8,10 +8,10 @@ app = FastAPI()
 # Add CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Your frontend's URL
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Define a schema for nodes and edges
@@ -39,16 +39,13 @@ def parse_pipeline(pipeline: Pipeline):
         num_nodes = len(pipeline.nodes)
         num_edges = len(pipeline.edges)
 
-        # Handle the case where there are no nodes or edges
         if num_nodes == 0 or num_edges == 0:
             raise HTTPException(status_code=400, detail="The pipeline must contain at least one node and one edge.")
 
-        # Create adjacency list for DAG check
         adjacency_list = {}
         for node in pipeline.nodes:
             adjacency_list[node.id] = []
 
-        # Validate that all edges have valid source and target nodes
         for edge in pipeline.edges:
             if edge.source not in adjacency_list:
                 raise HTTPException(status_code=400, detail=f"Invalid edge: {edge.id}. Source node '{edge.source}' does not exist.")
@@ -56,7 +53,6 @@ def parse_pipeline(pipeline: Pipeline):
                 raise HTTPException(status_code=400, detail=f"Invalid edge: {edge.id}. Target node '{edge.target}' does not exist.")
             adjacency_list[edge.source].append(edge.target)
 
-        # Check if the graph is a DAG (no cycles)
         def is_dag(graph):
             visited = set()
             rec_stack = set()
@@ -80,7 +76,6 @@ def parse_pipeline(pipeline: Pipeline):
                     return False
             return True
 
-        # Check if the graph is a DAG
         is_dag_result = is_dag(adjacency_list)
 
         return {
@@ -90,10 +85,8 @@ def parse_pipeline(pipeline: Pipeline):
         }
 
     except HTTPException as http_exc:
-        # Re-raise HTTP exceptions to return to the client
         raise http_exc
     except Exception as e:
-        # Catch any unexpected exceptions and log the error
         print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please check the input data.")
 
